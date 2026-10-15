@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Práctica 01 - Computación Paralela</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            max-width: 820px;
+            margin: 40px auto;
+            padding: 0 16px;
+            line-height: 1.6;
+            color: #222;
+            background: #fff;
+        }
+        h1 { font-size: 26px; margin-bottom: 4px; }
+        h2 { font-size: 20px; margin-top: 32px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        h3 { font-size: 17px; margin-top: 22px; }
+        code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; font-size: 14px; }
+        table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+        th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: center; }
+        th { background: #eee; }
+        td:first-child { text-align: left; }
+        .sub { color: #555; margin-top: 0; }
+    </style>
+</head>
+<body>
+
+<h1>Análisis de Don Quijote: secuencial vs. paralelo</h1>
+<p class="sub">Actividad Práctica 01 - Computación Paralela<br>Joseph Wellesley Martinez<br>
+    Repositorio: <a href="https://github.com/Jellz01/Pr-ctica-01-Procesamiento-secuencial-y-paralelo-de-textos-con-Java-Threads.git">https://github.com/Jellz01/Pr-ctica-01-Procesamiento-secuencial-y-paralelo-de-textos-con-Java-Threads.git</a></p>
+
+<h2>Descripción de la solución</h2>
+<p>
+    El programa procesa el archivo de texto de Don Quijote de la Mancha para obtener tres datos clave: el número total de palabras,
+    las apariciones exactas de la palabra "quijote" y las palabras que contienen la secuencia "ción" (sin distinguir entre mayúsculas y minúsculas).
+    El análisis se implementó inicialmente de manera secuencial y luego de forma paralela utilizando la clase nativa <code>Thread</code> de Java,
+    evaluando el rendimiento con 1, 2 y 4 hilos. La estructura se organizó en clases independientes y claras.
+</p>
+
+<h3>Clase ReadFile</h3>
+<p>
+    Esta clase maneja la carga de datos previa a la medición. Contiene el método <code>loadLines</code>, que mediante un <code>BufferedReader</code>
+    lee el archivo de texto línea por línea y lo guarda en memoria en un <code>ArrayList&lt;String&gt;</code>. De esta manera se asegura
+    que el tiempo de lectura desde el disco quede completamente fuera de la medición de rendimiento de la CPU.
+    Asimismo, incluye el método <code>duplicateLines</code>, que duplica las líneas cargadas la cantidad de veces solicitada (50 veces)
+    para generar el conjunto de datos ampliado directamente en memoria RAM.
+</p>
+
+<h3>Clase WorkerThread</h3>
+<p>
+    Es la clase encargada de realizar el procesamiento concurrente y hereda directamente de <code>Thread</code>.
+    Recibe en su constructor la lista de líneas, el índice inicial y final del bloque asignado, la palabra clave ("quijote") y la secuencia buscada ("ción").
+</p>
+<p>
+    En su método <code>run()</code> recorre únicamente su tramo de líneas asignado. Para cada línea, aplica <code>trim()</code> y separa las palabras
+    mediante una expresión regular que descarta espacios y signos de puntuación (<code>split</code>). Cada palabra se pasa a minúsculas y se evalúa:
+    se incrementa el contador general de palabras, se verifica igualdad exacta con <code>equals("quijote")</code> y se comprueba si incluye la subcadena
+    con <code>contains("ción")</code>. Los resultados se guardan en variables internas que luego se consultan mediante métodos getter
+    (<code>getTotalWords</code>, <code>getTargetCount</code> y <code>getSubkeyCount</code>).
+</p>
+
+<h3>Clase Main</h3>
+<p>
+    Coordina las pruebas, la descomposición de datos y las mediciones de tiempo con <code>System.nanoTime()</code>.
+    Para repartir el trabajo entre los hilos sin riesgo de cortar palabras entre bloques contiguos, la partición se hace a nivel de líneas completas,
+    calculando el tamaño de bloque dividiendo la cantidad total de líneas para el número de hilos.
+</p>
+<p>
+    En la ejecución secuencial (1 hilo), se llama directamente al método <code>run()</code> del <code>WorkerThread</code> sobre el hilo principal.
+    En la ejecución paralela (2 y 4 hilos), se instancia un arreglo de hilos, se inician con <code>start()</code> y luego se sincronizan con
+    <code>join()</code>, sumando sus resultados parciales. Cada prueba se repite 5 veces para obtener el tiempo promedio y calcular la aceleración
+    (Speedup) tanto para el texto original como para el ampliado.
+</p>
+
+<h2>Características del equipo</h2>
+<table>
+    <tr><th>Componente</th><th>Detalle</th></tr>
+    <tr><td>Procesador</td><td>Apple Silicon (ARM64)</td></tr>
+    <tr><td>Núcleos</td><td>8 núcleos</td></tr>
+    <tr><td>Memoria RAM</td><td>16 GB</td></tr>
+    <tr><td>Sistema operativo</td><td>macOS</td></tr>
+    <tr><td>Java</td><td>OpenJDK 17+</td></tr>
+</table>
+
+<h2>Resultados</h2>
+
+<h3>Conteos</h3>
+<table>
+    <tr><th>Conjunto de datos</th><th>Palabras</th><th>Apariciones de "quijote"</th><th>Palabras con "ción"</th></tr>
+    <tr><td>Original</td><td>389.839</td><td>1.723</td><td>950</td></tr>
+    <tr><td>Ampliado (x50)</td><td>19.491.950</td><td>86.150</td><td>47.500</td></tr>
+</table>
+<p>
+    Con 1, 2 y 4 hilos se obtienen exactamente los mismos resultados numéricos en cada corrida, y el texto ampliado da con exactitud 50 veces
+    los valores del original (19.491.950 palabras totales, 86.150 veces "quijote" y 47.500 con "ción"). Esto demuestra que la división por bloques
+    de líneas completas no pierde ni duplica ninguna palabra.
+</p>
+
+<h3>Tiempos</h3>
+<p>Aceleración: S = Ts / Tp, donde Ts es el tiempo con 1 hilo (secuencial) y Tp el tiempo con hilos en paralelo.</p>
+<table>
+    <tr><th>Conjunto de datos</th><th>Hilos</th><th>Tiempo promedio (ms)</th><th>Aceleración</th></tr>
+    <tr><td>Original</td><td>1 (secuencial)</td><td>65,81</td><td>1,00</td></tr>
+    <tr><td>Original</td><td>2</td><td>29,59</td><td>2,22</td></tr>
+    <tr><td>Original</td><td>4</td><td>16,23</td><td>4,05</td></tr>
+    <tr><td>Ampliado (x50)</td><td>1 (secuencial)</td><td>1390,71</td><td>1,00</td></tr>
+    <tr><td>Ampliado (x50)</td><td>2</td><td>871,85</td><td>1,60</td></tr>
+    <tr><td>Ampliado (x50)</td><td>4</td><td>619,98</td><td>2,24</td></tr>
+</table>
+
+<h2>Análisis y respuestas</h2>
+
+<h3>1. ¿Qué diferencias se observan entre los tiempos de ejecución secuencial y paralela?</h3>
+<p>
+    El procesamiento paralelo reduce sensiblemente los tiempos de ejecución frente a la versión secuencial. En el archivo original, el tiempo promedio
+    pasa de 65,81 ms en secuencial a 29,59 ms con 2 hilos y a 16,23 ms con 4 hilos. En el texto ampliado la reducción en tiempo real es todavía más
+    evidente: el análisis secuencial toma 1390,71 ms (más de 1,3 segundos), mientras que con 4 hilos desciende a 619,98 ms, ahorrando más de 770 ms
+    por iteración sin alterar la precisión ni la consistencia de los conteos finales.
+</p>
+
+<h3>2. ¿Cómo influye el número de hilos en el rendimiento?</h3>
+<p>
+    Aumentar el número de hilos disminuye el tiempo de respuesta. Con el documento original se observa una aceleración superior (2,22 con 2 hilos
+    y 4,05 con 4 hilos) favorecida por la optimización del compilador JIT y el reparto de datos pequeños en memoria caché. Con el documento ampliado,
+    la aceleración es de 1,60 con 2 hilos y 2,24 con 4 hilos. Aunque el rendimiento mejora significativamente al usar más hilos, el incremento
+    deja de ser lineal debido a la contención por el acceso concurrente al bus de memoria RAM al mover casi 20 millones de palabras y al coste
+    fijo de sincronización con <code>join()</code>.
+</p>
+
+<h3>3. ¿Qué sucede al incrementar el tamaño del documento?</h3>
+<p>
+    Al multiplicar el contenido por 50, el tiempo de procesamiento secuencial sube de 65,81 ms a 1390,71 ms (unas 21 veces más).
+    Con un volumen de datos mucho mayor, los hilos pasan la mayor parte del tiempo realizando cómputo puro y procesando tokens,
+    haciendo que el coste de creación de los hilos en el sistema operativo sea insignificante. Sin embargo, procesar casi 20 millones de palabras
+    en simultáneo genera saturación en el ancho de banda de memoria, estabilizando el speedup en 2,24 con 4 hilos.
+</p>
+
+<h3>4. ¿El procesamiento paralelo siempre es más rápido? Justifique su respuesta.</h3>
+<p>
+    No siempre es más rápido. Crear instancias de <code>Thread</code>, asignar sus espacios de memoria en la JVM, coordinar los cambios de contexto
+    y esperar la finalización con <code>join()</code> introduce una sobrecarga constante (overhead). Si el archivo a procesar fuera diminuto
+    (unas pocas líneas o palabras), el tiempo requerido para gestionar los hilos superaría al tiempo que le toma a la CPU resolver el problema
+    en un único hilo secuencial. El paralelismo solo conviene cuando el tamaño del problema compensa con creces dicho costo y existen núcleos libres.
+</p>
+
+<h2>Conclusiones</h2>
+<ul>
+    <li>La paralelización directa con <code>Thread</code> y sincronización con <code>join()</code> reduce los tiempos de cómputo manteniendo los mismos conteos que la ejecución secuencial.</li>
+    <li>Dividir el texto por rangos de líneas contiguas es una técnica simple y confiable para evitar cortar palabras a la mitad entre hilos adyacentes.</li>
+    <li>En conjuntos de datos extensos el rendimiento mejora notablemente, aunque el escalamiento se ve limitado por el acceso continuo a memoria y la sincronización final.</li>
+    <li>Cargar el texto previamente en la memoria RAM es indispensable para aislar la velocidad del procesador de la lentitud de lectura del disco.</li>
+</ul>
+
+</body>
+</html>
